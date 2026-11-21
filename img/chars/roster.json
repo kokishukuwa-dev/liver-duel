@@ -1,0 +1,52 @@
+[
+  {
+    "id": "pixel_blue",
+    "name": "青拳士",
+    "style": "16ビットドット絵"
+  },
+  {
+    "id": "pixel_red",
+    "name": "赤蹴士",
+    "style": "16ビットドット絵"
+  },
+  {
+    "id": "ink_samurai",
+    "name": "蒼兜",
+    "style": "墨と水彩"
+  },
+  {
+    "id": "ink_ninja",
+    "name": "紅忍",
+    "style": "墨と水彩"
+  },
+  {
+    "id": "sticker_glasses",
+    "name": "青メガネ",
+    "style": "白フチステッカー"
+  },
+  {
+    "id": "sticker_boxer",
+    "name": "熱血拳士",
+    "style": "白フチステッカー"
+  },
+  {
+    "id": "clay_sumo",
+    "name": "粘土力士",
+    "style": "粘土アニメ"
+  },
+  {
+    "id": "rubberhose_retro",
+    "name": "セピア拳",
+    "style": "1930年代の米国アニメ"
+  },
+  {
+    "id": "toy_robot",
+    "name": "ソフビ機兵",
+    "style": "ソフビ人形風"
+  },
+  {
+    "id": "anime_mage",
+    "name": "星の魔法使い",
+    "style": "日本のアニメ風セル塗り"
+  }
+]
