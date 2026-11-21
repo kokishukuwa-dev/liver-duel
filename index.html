@@ -331,6 +331,13 @@ body.busy .bgfx .ray i{animation-play-state:paused}
 .gbox b{font-size:20px}.gbox p{margin:0;color:var(--mute);font-weight:500}
 .netbar .grow{flex:1;min-width:160px}
 .netlink{display:flex;gap:6px}
+.rdy{font-size:14px;font-weight:800;color:var(--bili);flex-basis:100%;text-align:right}
+body.net-host .rdy[data-r="p0"]::after,body.net-guest .rdy[data-r="p1"]::after{content:"準備OK。相手が押すのを待っています"}
+body.net-host .rdy[data-r="p1"]::after,body.net-guest .rdy[data-r="p0"]::after{content:"相手は準備OK。押すと次へ進みます"}
+.reveal .row{flex-wrap:wrap}
+body.net-host.net-has :is(#nextBtn,#evNext,#actGo)::after,body.net-guest :is(#nextBtn,#evNext,#actGo)::after{content:"（2人とも押す）";font-size:12px;margin-left:4px;opacity:.8}
+.numbox.done>:not(.who):not(.netwait){display:none}.numbox.done .netwait{display:block!important}
+.gpause{position:fixed;inset:0;z-index:55;background:rgba(10,4,6,.7);display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff}
 .bigcode{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
 .bigcode b{font-family:var(--f-disp);font-size:64px;letter-spacing:.18em;color:var(--bili);line-height:1}
 .codein{font-size:44px;text-align:center;letter-spacing:.3em;font-weight:800;padding:8px;border-radius:12px;width:100%}
@@ -382,6 +389,8 @@ body.net-host .peek,body.net-guest .peek{display:none}
       <button type="button" data-v="10">10問</button><button type="button" data-v="15" aria-pressed="true">15問</button><button type="button" data-v="20">20問</button><button type="button" data-v="30">30問</button></div></div>
     <div class="seg"><span class="label">出題範囲</span><div class="row" id="optScope">
       <button type="button" data-v="all" aria-pressed="true">ぜんぶ</button><button type="button" data-v="basic">肝臓の基本</button><button type="button" data-v="gene">代謝と遺伝子</button><button type="button" data-v="gakkai">学会のキーワード</button><button type="button" data-v="path">パスウェイ穴埋め</button></div></div>
+    <div class="seg"><span class="label">出す問題</span><div class="row" id="optFresh">
+      <button type="button" data-v="off" aria-pressed="true">ふつう</button><button type="button" data-v="on">まだ出ていない問題をたくさん</button></div></div>
     <div class="seg"><span class="label">むずかしさ</span><div class="row" id="optLv">
       <button type="button" data-v="easy">やさしめ</button><button type="button" data-v="mix" aria-pressed="true">ミックス</button><button type="button" data-v="hard">マニアック</button></div></div>
     <div class="seg"><span class="label">イベントカード</span><div class="row" id="optEv">
@@ -474,6 +483,7 @@ body.net-host .peek,body.net-guest .peek{display:none}
   <div class="title-actions"><button class="btn primary" id="joinGo" type="button">入る</button><button class="btn" id="joinCancel" type="button">やめる</button></div>
 </div></div>
 <div class="netdot" id="netDot" hidden aria-live="polite"></div>
+<div class="gpause" id="gPause" hidden>相手が一時停止中…</div>
 
 <script src="questions.js"></script>
 <script>
@@ -567,13 +577,16 @@ function liverSVGraw(hp,team,max){
 
 
 /* ---------- 設定 ---------- */
-const opt={count:15,lv:"mix",ev:"on",act:"on",scope:"all"};
+const opt={count:15,lv:"mix",ev:"on",act:"on",scope:"all",fresh:"off"};
 function bindSeg(id,key){const box=$(id);box.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;box.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));opt[key]=key==="count"?+b.dataset.v:b.dataset.v;updatePool();});}
-bindSeg("#optCount","count");bindSeg("#optLv","lv");bindSeg("#optEv","ev");bindSeg("#optAct","act");bindSeg("#optScope","scope");
+bindSeg("#optCount","count");bindSeg("#optLv","lv");bindSeg("#optEv","ev");bindSeg("#optAct","act");bindSeg("#optScope","scope");bindSeg("#optFresh","fresh");
 const saved=store.get("ld_names",null);if(saved){$("#n1").value=saved[0];$("#n2").value=saved[1];}
 function inScope(q){const sc=opt.scope;if(sc==="path")return !!q.path;if(sc==="gene")return q.cat==="代謝と遺伝子"||!!q.path;if(sc==="gakkai")return q.cat==="学会のキーワード";if(sc==="basic")return q.cat!=="代謝と遺伝子"&&q.cat!=="学会のキーワード"&&!q.path;return true;}
 function poolFor(lv){const p=Q.filter(q=>inScope(q)&&(lv==="easy"?q.lv<=2:lv==="hard"?q.lv>=2:true));return p.length>=4?p:Q.filter(inScope);}
-function updatePool(){const p=poolFor(opt.lv).length;$("#poolInfo").textContent=`問題 ${Q.length}問収録・この設定で出るのは ${p}問から ${Math.min(opt.count,p)}問`;}
+function seenAll(){const s=Object.assign({},store.get("ld_seen",{}));if(typeof NET!=="undefined"&&NET.role==="host"&&NET.guest&&Array.isArray(NET.guest.seen))NET.guest.seen.forEach(id=>s[id]=1);return s;}
+function updatePool(){const pool=poolFor(opt.lv),p=pool.length;let t=`問題 ${Q.length}問収録・この設定で出るのは ${p}問から ${Math.min(opt.count,p)}問`;
+  if(opt.fresh==="on"){const sn=seenAll(),u=pool.filter(q=>!sn[q.id]).length;t+=`（まだ出ていない問題 ${u}問${NET.role==="host"&&NET.guest?"・2人とも":""}）`;}
+  $("#poolInfo").textContent=t;}
 updatePool();
 
 /* ---------- 画面切替 ---------- */
@@ -583,14 +596,14 @@ function show(id){["#title","#game","#result","#zukan"].forEach(s=>$(s).hidden=(
 let S=null,timer=null;
 let pausedTotal=0,pauseStart=null;
 const clock=()=>(pauseStart!=null?pauseStart:performance.now())-pausedTotal;
-function pauseGame(){if(pauseStart==null)pauseStart=performance.now();}
-function resumeGame(){if(pauseStart!=null){pausedTotal+=performance.now()-pauseStart;pauseStart=null;}}
+function pauseGame(){if(pauseStart==null)pauseStart=performance.now();if(NET.role==="host")netSend({t:"pause",on:true});}
+function resumeGame(){if(pauseStart!=null){pausedTotal+=performance.now()-pauseStart;pauseStart=null;}if(NET.role==="host")netSend({t:"pause",on:false});}
 function pickQuestions(){
   const pool=poolFor(opt.lv);
   // 易しめは★1を多めに、マニアックは★3を多めに
   const w=q=>opt.lv==="easy"?(q.lv===1?3:1):opt.lv==="hard"?(q.lv===3?3:1):1;
-  const seen=store.get("ld_seen",{});
-  const bag=pool.map(q=>({q,k:Math.random()*w(q)*(seen[q.id]?0.6:1)})).sort((a,b)=>b.k-a.k).map(x=>x.q);
+  const seen=seenAll(),fresh=opt.fresh==="on";
+  const bag=pool.map(q=>({q,k:Math.random()*w(q)*(seen[q.id]?(fresh?0.01:0.6):1)+(fresh&&!seen[q.id]?10:0)})).sort((a,b)=>b.k-a.k).map(x=>x.q);
   // 同じ知識を直接教え合う問題は1対戦に1問まで
   const GROUPS=[["i01","s06"],["i08","d06","x03"],["i03","m29"],["i02","g13"],["p01","a02","m09","m18"],["p09","m12"],["p02","p04","m20"],["p11","m05"],["p16","m26"],["p10","m15"],["p17","g16"],["p18","p08","p07"],["f04","x01","m25"],["f01","d14"],["s10","x02","x05","f14"],["f05","x08"],["f06","d01"],["a05","x10","a03"],["d02","x09"],["d06","x03"],["s09","f09"],["a01","a02"],["s03","s04"],["a13","a03"],["d13","m11","m31"],["a02","m09","m18","a06"],["m08","m15"],["f06","m12"],["m13","x03","d07"]];
   const used=new Set();let picked=[];
@@ -620,6 +633,7 @@ function pickChars(){
   return out;
 }
 function newGame(){
+  if(S)S.numBoth=false;
   const names=[$("#n1").value.trim()||"プレイヤー1",$("#n2").value.trim()||"プレイヤー2"];
   if(NET.role!=="host"||!NET.guest)store.set("ld_names",names);
   const chars=pickChars();
@@ -763,7 +777,7 @@ function buzz(i,ext){
   startTimer(8,()=>{if(S.phase==="answer"||S.phase==="steal")choose(-1);});
 }
 function liveChoices(on){document.querySelectorAll("#choices .ch").forEach((b,k)=>{const dead=S.missed.includes(k);b.disabled=dead||(!on&&S.phase!=="buzz");b.classList.toggle("live",on&&!dead);b.classList.toggle("locked",!on);});}
-function nudge(){const pr=$("#prompt");if(!pr)return;pr.innerHTML="先に早押し！ <span class=\"kbd\">A</span>／<span class=\"kbd\">L</span> か下の大きいボタン";pr.classList.remove("nudge");void pr.offsetWidth;pr.classList.add("nudge");}
+function nudge(){const pr=$("#prompt");if(!pr)return;pr.innerHTML=NET.role==="host"&&NET.guest?"先に早押し！ 下の大きいボタン（<span class=\"kbd\">A</span>）":"先に早押し！ <span class=\"kbd\">A</span>／<span class=\"kbd\">L</span> か下の大きいボタン";pr.classList.remove("nudge");void pr.offsetWidth;pr.classList.add("nudge");}
 function calcDmg(q,i){
   let d=[0,15,20,25][q.lv]+S.mods.plus;
   const p=S.players[i];let combo=false;
@@ -846,7 +860,36 @@ function showNum(q){
   S.phase="num";S.numVals=[null,null];S.opts=null;
   const order=[S.numFirst,1-S.numFirst];S.numFirst=1-S.numFirst;S.numOrder=order;S.numStep=0;
   setBuzz(false,false);
+  if(NET.role==="host"&&NET.guest)return renderNumBoth(q);
   renderNumInput(q);
+}
+/* 2台のとき: それぞれ自分の画面で同時に入力（相手の入力欄は見えない）。2人そろったら答え合わせ */
+function renderNumBoth(q){
+  S.numBoth=true;setActive(-1);
+  const area=$("#stageArea");area.innerHTML="";
+  const card=el("div","qcard"+(S.mods.blur?" blurry":""));S.mods.blur=false;card.dataset.k="q"+S.qi;
+  const n=q.num,mid=Math.round(((n.min+n.max)/2)/n.step)*n.step;
+  card.innerHTML=qHead(q)+`<div class="qtext">${esc(q.q)}</div>`+[0,1].map(i=>`<div class="numbox" data-for="${i}" data-k="n${S.qi}-${i}" id="nb${i}"><div class="who" style="color:${i===0?"#1d6fb0":"#c23b4e"}">${esc(nm(i))}</div>
+   <div class="netwait" id="nw${i}">入力中…</div>
+   <div class="val" id="nv${i}" data-local>${fmt(mid)}<small>${esc(n.unit)}</small></div>
+   <input type="range" id="nr${i}" min="${n.min}" max="${n.max}" step="${n.step}" value="${mid}" aria-label="数値">
+   <div class="steps">${[-10,-1,1,10].map(m=>`<button type="button" data-m="${m}">${m>0?"+":""}${fmt(m*n.step)}</button>`).join("")}</div>
+   <input type="number" id="nn${i}" min="${n.min}" max="${n.max}" step="${n.step}" value="${mid}" aria-label="数値を直接入力">
+   <button class="btn primary" id="nOk${i}" type="button">これで決定 <span class="kbd">Enter</span></button></div>`).join("");
+  area.appendChild(card);
+  const r=$("#nr0"),nn=$("#nn0"),nv=$("#nv0");
+  const set=v=>{v=Math.min(n.max,Math.max(n.min,+v));if(isNaN(v))v=mid;r.value=v;v=+r.value;nn.value=v;nv.innerHTML=`${fmt(v)}<small>${esc(n.unit)}</small>`;};
+  r.oninput=()=>set(r.value);nn.onchange=()=>set(nn.value);
+  $("#nb0").querySelectorAll(".steps button").forEach(b=>b.onclick=()=>set(+r.value+(+b.dataset.m)*n.step));
+  const ok=()=>{set(nn.value);numSubmit(0,+r.value);};
+  $("#nOk0").onclick=ok;S.numOk=ok;
+  r.focus({preventScroll:true});
+}
+function numSubmit(i,v){
+  if(!S||S.phase!=="num"||!S.numBoth||S.numVals[i]!=null||!isFinite(v))return;
+  const q=S.qs[S.qi],n=q.num;S.numVals[i]=Math.min(n.max,Math.max(n.min,v));SFX.buzz();
+  $("#nb"+i).classList.add("done");$("#nw"+i).textContent="入力済み ✔";
+  if(S.numVals[0]!=null&&S.numVals[1]!=null){S.numBoth=false;numReveal(q);}
 }
 function renderNumInput(q){
   const step=S.numStep;const i=S.numOrder[step];setActive(i);
@@ -923,7 +966,7 @@ function showAction(){
   SFX.ev();
   const area=$("#stageArea");area.innerHTML="";
   const box=el("div","event act");
-  box.innerHTML=`<img class="cardimg" src="img/act_${a.id}.webp" alt="" onerror="this.remove()"><div class="label">アクションゲーム</div><div class="ttl">${a.ttl}</div><div class="eff">${a.how}</div><div class="know">${esc(nm(0))}は <span class="kbd">A</span>／左ボタン、${esc(nm(1))}は <span class="kbd">L</span>／右ボタン</div><button class="btn primary" id="actGo" type="button">スタート <span class="kbd">Space</span></button>`;
+  box.innerHTML=`<img class="cardimg" src="img/act_${a.id}.webp" alt="" onerror="this.remove()"><div class="label">アクションゲーム</div><div class="ttl">${a.ttl}</div><div class="eff">${a.how}</div><div class="know">${NET.role==="host"&&NET.guest?"2人とも、自分の画面の下の大きいボタンで（PCは <span class=\"kbd\">A</span> キーでも）":`${esc(nm(0))}は <span class="kbd">A</span>／左ボタン、${esc(nm(1))}は <span class="kbd">L</span>／右ボタン`}</div><button class="btn primary" id="actGo" type="button">スタート <span class="kbd">Space</span></button>`;
   area.appendChild(box);
   const go=()=>startAction(a);
   $("#actGo").onclick=go;S.advance=go;
@@ -1047,6 +1090,7 @@ function finish(){
     rv.appendChild(d);
   });
   show("#result");SFX.win();
+  if(NET.role==="host")netSend({t:"seen",ids:S.log.map(l=>l.q.id)});
 }
 $("#againBtn").onclick=()=>$("#startBtn").onclick();
 // 試験用（URLの末尾が #debug のときだけ）
@@ -1097,6 +1141,7 @@ document.addEventListener("keydown",e=>{
   if((S.phase==="reveal"||S.phase==="event"||S.phase==="numpass"||S.phase==="actintro")&&(isSpace||isEnter)){
     // どのボタンにフォーカスがあっても「次へ」として扱い、ボタン本来のクリックは起こさない
     e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
+    if(NET.role==="host"&&NET.guest)return netAdv(0);
     const f=S.advance;S.advance=null;f&&f();}
 });
 // ページの外をクリックするとキーが届かなくなるので知らせる
@@ -1104,7 +1149,10 @@ window.addEventListener("blur",()=>{if(S&&!$("#game").hidden)$("#focusHint").hid
 window.addEventListener("focus",()=>{$("#focusHint").hidden=true;});
 document.addEventListener("pointerdown",()=>{$("#focusHint").hidden=true;},true);
 // ボタンにフォーカスがある状態でSpace/Enterを押したときの二重進行を防ぐ
-document.addEventListener("click",e=>{if(e.target.closest("#nextBtn,#evNext,#passOk,#actGo"))S&&(S.advance=null);},true);
+document.addEventListener("click",e=>{if(!e.target.closest("#nextBtn,#evNext,#passOk,#actGo"))return;
+  // 2台で遊ぶときは、押した人に「準備OK」をつけ、2人そろったら進む
+  if(NET.role==="host"&&NET.guest){e.preventDefault();e.stopPropagation();netAdv(0);return;}
+  S&&(S.advance=null);},true);
 /* ---------- オンライン対戦（ルーム番号かリンクで別の端末とつながる） ----------
    部屋を作った端末（親）が進行と判定をすべて持ち、画面の中身を相手へ送る。相手（子）は送られた画面を映し、押したボタンだけを親へ返す。
    通り道は2本: (1) 公開の中継サーバー（MQTT、2か所）… どの回線どうしでも届く  (2) 端末どうしの直接通信（WebRTC）… 同じWi-Fiなどでつながれば速い。
@@ -1166,6 +1214,16 @@ function netSched(){if(!netT)netT=setTimeout(()=>netFlush(false),LK.dc&&LK.dc.op
 function netObserve(){if(netObs)return;const localOnly=r=>{const t=r.target.nodeType===1?r.target:r.target.parentElement;return !!(t&&t.closest("[data-local]"));};
   netObs=new MutationObserver(recs=>{if(recs.every(localOnly))return;netSched();});
   ["#game","#result"].forEach(s=>netObs.observe($(s),{subtree:true,childList:true,attributes:true,characterData:true}));}
+/* 「次へ」: 2人とも押したら進む（相手の通信が途切れているときは押した人だけで進む） */
+function netAdv(i){
+  if(!S||!S.advance)return;
+  const key=S.phase+"|"+S.qi;if(!S.rdy||S.rdy.k!==key)S.rdy={k:key,p:[false,false]};
+  S.rdy.p[i]=true;SFX.tick();
+  if((S.rdy.p[0]&&S.rdy.p[1])||!netLive()){const f=S.advance;S.advance=null;S.rdy=null;f();return;}
+  const btn=document.querySelector("#nextBtn,#evNext,#actGo,#passOk");if(!btn)return;
+  let r=btn.parentNode.querySelector(".rdy");if(!r){r=el("div","rdy");btn.after(r);}
+  r.dataset.r="p"+i;
+}
 /* 早押しの判定: 端末ごとに「問題が画面に出てから押すまでの時間」を比べる（通信の遅れで子が不利にならないよう、親は往復時間ぶん待つ） */
 function netBuzz(i,el){
   if(!S||S.phase!=="buzz")return;
@@ -1177,7 +1235,7 @@ function onHostData(d){
   if(d.t==="hello"){
     const now=performance.now();
     if(NET.guest&&NET.guest.f!==d.f&&now-NET.gHeard<7000){netSend({t:"full",to:d.f});return;}
-    NET.guest={f:d.f,name:String(d.name||"").trim().slice(0,10)||"プレイヤー2",char:ROSTER.some(r=>r.id===d.char)?d.char:"rand"};NET.gHeard=now;
+    NET.guest={f:d.f,name:String(d.name||"").trim().slice(0,10)||"プレイヤー2",char:ROSTER.some(r=>r.id===d.char)?d.char:"rand",seen:Array.isArray(d.seen)?d.seen.filter(x=>typeof x==="string").slice(0,2000):[]};NET.gHeard=now;updatePool();
     renderNetBar();netFlush(true);return;}
   if(!NET.guest||d.f!==NET.guest.f)return;
   NET.gHeard=performance.now();
@@ -1185,8 +1243,8 @@ function onHostData(d){
   if(!S)return;
   if(d.t==="press"){const ext={el:+d.el,tv:+d.tv,rt:+d.rt};if(typeof d.foul==="boolean")ext.foul=d.foul;if(ext.el<0||ext.el>60000)ext.el=NaN;return S.phase==="action"?actPress(1,ext):buzz(1,ext);}
   if(d.t==="choose"){if((S.phase==="answer"||S.phase==="steal")&&S.answerer===1)choose(Math.floor(+d.k));return;}
-  if(d.t==="num"){if(S.phase==="num"&&S.numOrder[S.numStep]===1){const v=+d.v;if(isFinite(v)&&$("#nn")){$("#nn").value=v;$("#nr").value=v;S.numOk&&S.numOk(true);}}return;}
-  if(d.t==="adv"){if(d.ph===S.phase&&d.qi===S.qi&&S.advance){const f=S.advance;S.advance=null;f();}return;}
+  if(d.t==="num"){if(S.phase==="num"&&S.numBoth)numSubmit(1,+d.v);return;}
+  if(d.t==="adv"){if(d.ph===S.phase&&d.qi===S.qi&&S.advance)netAdv(1);return;}
 }
 let n2Before=null,netTick=0;
 function renderNetBar(){
@@ -1265,8 +1323,10 @@ function onGuestData(d){
   // 2本の通り道で順番が入れ替わっても、古い画面で上書きしない
   if(d.t==="dom"||d.t==="scr"||d.t==="ph"||d.t==="tmr"){const k=d.t+(d.r||"");if((G.ver[k]||0)>d.s)return;G.ver[k]=d.s;}
   if(d.t==="dom"){const sel=REG[d.r];if(sel&&typeof d.h==="string"){morph($(sel),d.h);if(d.r==="stage")gAfterStage();}return;}
-  if(d.t==="scr"){G.ok=true;if(d.id==="#game"||d.id==="#result")show(d.id);else{show("#title");gStat("つながりました。親（部屋を作った人）がスタートするのを待っています");}return;}
+  if(d.t==="scr"){G.ok=true;$("#gPause").hidden=true;if(d.id==="#game"||d.id==="#result")show(d.id);else{show("#title");gStat("つながりました。親（部屋を作った人）がスタートするのを待っています");}return;}
   if(d.t==="ph"){G.ph=d.ph;G.an=d.an;G.qi=d.qi;return;}
+  if(d.t==="seen"){if(Array.isArray(d.ids))d.ids.forEach(id=>typeof id==="string"&&markSeen(id));return;}
+  if(d.t==="pause"){$("#gPause").hidden=!d.on;return;}
   if(d.t==="toast"){toast(String(d.h),+d.ms||4200);return;}
   if(d.t==="tone"){if(Array.isArray(d.a))tone(...d.a);return;}
   if(d.t==="tmr"){G.tmr=d.sec?{sec:+d.sec,t0:performance.now()}:null;gTimer();return;}
@@ -1274,7 +1334,7 @@ function onGuestData(d){
   if(d.t==="ping"){G.rtt=+d.r||0;netSend({t:"pong",ts:d.ts});return;}
 }
 let gHelloT=0;
-function gHello(){netSend({t:"hello",name:$("#n2").value.trim()||"プレイヤー2",char:charSel[1]});store.set("ld_gname",$("#n2").value.trim());}
+function gHello(){netSend({t:"hello",name:$("#n2").value.trim()||"プレイヤー2",char:charSel[1],seen:Object.keys(store.get("ld_seen",{})).slice(0,2000)});store.set("ld_gname",$("#n2").value.trim());}
 function gPress(){
   const b=$("#buzz1");if(!b||b.disabled)return;const now=performance.now();
   b.classList.remove("lit");void b.offsetWidth;b.classList.add("lit");
@@ -1284,7 +1344,9 @@ function gPress(){
   else if(G.ph==="buzz"&&G.qAt!=null)m.el=now-G.qAt;
   netSend(m);
 }
-function gNumSet(v){const r=$("#nr"),nn=$("#nn"),nv=$("#nv");if(!r)return;const mn=+r.min,mx=+r.max;v=+v;if(!isFinite(v))v=+r.value;r.value=Math.min(mx,Math.max(mn,v));nn.value=r.value;const u=nv&&nv.querySelector("small");if(nv)nv.innerHTML=`${fmt(+r.value)}<small>${esc(u?u.textContent:"")}</small>`;}
+function gNumSend(){const r=$("#nr1"),b=$("#nb1");if(!r||!b||b.classList.contains("done"))return;netSend({t:"num",v:+r.value});b.classList.add("done");const w=$("#nw1");if(w)w.textContent="入力済み ✔（相手を待っています）";}
+function gNudge(){const pr=$("#prompt");if(!pr)return;pr.textContent="先に早押し！ 下の大きいボタンを押してから選んでね";}
+function gNumSet(v){const r=$("#nr1"),nn=$("#nn1"),nv=$("#nv1");if(!r)return;const mn=+r.min,mx=+r.max;v=+v;if(!isFinite(v))v=+r.value;r.value=Math.min(mx,Math.max(mn,v));nn.value=r.value;const u=nv&&nv.querySelector("small");if(nv)nv.innerHTML=`${fmt(+r.value)}<small>${esc(u?u.textContent:"")}</small>`;}
 let gBound=false;
 async function guestJoin(code){
   NET.role="guest";document.body.classList.add("net-guest");G.full=false;G.ok=false;G.host=null;G.ver={};
@@ -1309,20 +1371,21 @@ async function guestJoin(code){
   $("#cp1").addEventListener("click",()=>{if(NET.role==="guest")setTimeout(gHello,0);});
   document.addEventListener("pointerdown",e=>{unlockAudio();if(e.target.closest("#buzz1")){e.preventDefault();gPress();}},true);
   document.addEventListener("click",e=>{const t=e.target;
-    const ch=t.closest("#choices .ch");if(ch){if((G.ph==="answer"||G.ph==="steal")&&G.an===1)netSend({t:"choose",k:[...document.querySelectorAll("#choices .ch")].indexOf(ch)});return;}
+    const ch=t.closest("#choices .ch");if(ch){if(G.ph==="buzz")gNudge();if((G.ph==="answer"||G.ph==="steal")&&G.an===1)netSend({t:"choose",k:[...document.querySelectorAll("#choices .ch")].indexOf(ch)});return;}
     if(t.closest("#nextBtn,#evNext,#actGo,#passOk")){netSend({t:"adv",ph:G.ph,qi:G.qi});return;}
-    const st=t.closest(".numbox .steps button");if(st){const r=$("#nr"),step=+(r&&r.step)||1;gNumSet(+r.value+(+st.dataset.m)*step);return;}
-    if(t.closest("#nOk")){const r=$("#nr");if(r)netSend({t:"num",v:+r.value});}
+    const st=t.closest("#nb1 .steps button");if(st){const r=$("#nr1"),step=+(r&&r.step)||1;gNumSet(+r.value+(+st.dataset.m)*step);return;}
+    if(t.closest("#nOk1")){gNumSend();return;}
+    if(G.ph==="buzz"&&t.closest("#choices .ch")){gNudge();}
   },true);
-  document.addEventListener("input",e=>{if(e.target.id==="nr")gNumSet(e.target.value);},true);
-  document.addEventListener("change",e=>{if(e.target.id==="nn")gNumSet(e.target.value);},true);
+  document.addEventListener("input",e=>{if(e.target.id==="nr1")gNumSet(e.target.value);},true);
+  document.addEventListener("change",e=>{if(e.target.id==="nn1")gNumSet(e.target.value);},true);
   document.addEventListener("keydown",e=>{
     if($("#game").hidden)return;const k=(e.key||"").toLowerCase(),c=e.code||"";
     const dm=c.match(/^(?:Digit|Numpad)([1-4])$/),digit=dm?+dm[1]:(/^[1-4]$/.test(k)?+k:0);
     const sp=c==="Space"||k===" ",en=c==="Enter"||c==="NumpadEnter"||k==="enter",press=sp||c==="KeyL"||k==="l"||c==="KeyA"||k==="a";
     if(G.ph==="buzz"||G.ph==="action"){if(press){e.preventDefault();if(!e.repeat)gPress();}return;}
     if(G.ph==="answer"||G.ph==="steal"){if(digit&&G.an===1){e.preventDefault();netSend({t:"choose",k:digit-1});}return;}
-    if(G.ph==="num"){if(en){e.preventDefault();const r=$("#nr");if(e.target.id==="nn")gNumSet(e.target.value);if(r)netSend({t:"num",v:+r.value});}return;}
+    if(G.ph==="num"){if(en){e.preventDefault();if(e.target.id==="nn1")gNumSet(e.target.value);gNumSend();}return;}
     if((sp||en)&&!e.repeat&&["reveal","event","numpass","actintro"].includes(G.ph)){e.preventDefault();netSend({t:"adv",ph:G.ph,qi:G.qi});}
   });
 }
