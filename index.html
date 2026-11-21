@@ -330,7 +330,14 @@ body.busy .bgfx .ray i{animation-play-state:paused}
 .gbox{flex-direction:column;align-items:stretch;text-align:center}
 .gbox b{font-size:20px}.gbox p{margin:0;color:var(--mute);font-weight:500}
 .netbar .grow{flex:1;min-width:160px}
-.netlink{display:flex;gap:6px}.netlink input{flex:1;min-width:0;font-size:14px}
+.netlink{display:flex;gap:6px}
+.bigcode{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
+.bigcode b{font-family:var(--f-disp);font-size:64px;letter-spacing:.18em;color:var(--bili);line-height:1}
+.codein{font-size:44px;text-align:center;letter-spacing:.3em;font-weight:800;padding:8px;border-radius:12px;width:100%}
+#gStat{font-weight:800;color:var(--fg)}
+.netdot{position:fixed;top:max(6px,env(safe-area-inset-top,0px));right:8px;z-index:60;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:#2a1a1e;border:1px solid var(--line);color:var(--mute);pointer-events:none}
+.netdot::before{content:"●";margin-right:5px}
+.netdot.good::before{color:#7fd06a}.netdot.slow::before{color:#e0b43a}.netdot.off::before{color:#e05a5a}.netlink input{flex:1;min-width:0;font-size:14px}
 body.net-guest #title .pcard.p1,body.net-guest #title .opts,body.net-guest #startBtn,body.net-guest #netBtn,body.net-guest #poolInfo{display:none}
 body.net-guest #title .setup{grid-template-columns:minmax(0,1fr)}
 body.net-host #buzz1,body.net-guest #buzz0,body.net-guest #quitBtn,body.net-guest #againBtn,body.net-guest #toTitleBtn{display:none}
@@ -356,7 +363,7 @@ body.net-host .peek,body.net-guest .peek{display:none}
 
 <!-- タイトル -->
 <section class="screen" id="title">
-  <div class="topbar"><span class="label">2人対戦・肝臓クイズ</span><button class="btn small" id="soundBtn" type="button">音: ON</button></div>
+  <div class="topbar"><span class="label">2人対戦・肝臓クイズ</span><span class="row" style="gap:6px"><button class="btn small" id="bgmBtn" type="button">BGM: OFF</button><button class="btn small" id="soundBtn" type="button">音: ON</button></span></div>
   <div class="hero">
     <div>
       <div class="logo">レバー<br><span>デュエル</span></div>
@@ -365,7 +372,7 @@ body.net-host .peek,body.net-guest .peek{display:none}
     <div class="vs-art"><img class="titleimg" src="img/title.webp" alt="肝臓くん2体の対決"></div>
   </div>
   <div class="netbar" id="netBar" hidden></div>
-  <div class="gbox" id="gBox" hidden><b>オンライン対戦に招待されています</b><p>下で名前とキャラを選んで「参加する」を押してください。あなたはプレイヤー2（右）です。</p><button class="btn primary go" id="gJoin" type="button">参加する</button><div class="mute" id="gStat" aria-live="polite"></div></div>
+  <div class="gbox" id="gBox" hidden><b>ルーム <span id="gRoom"></span> に参加</b><div id="gStat" aria-live="polite"></div><p>あなたはプレイヤー2（右）。名前とキャラは下で変えると、すぐ相手に届きます。</p><div class="title-actions" style="justify-content:center"><button class="btn primary" id="gJoin" type="button" hidden>もう一度つなぐ</button><button class="btn small" id="gLeave" type="button">抜ける</button></div></div>
   <div class="setup">
     <div class="pcard p1"><span class="team">門脈チーム（左）</span><label for="n1" class="label">プレイヤー1の名前</label><input id="n1" maxlength="10" value="プレイヤー1"><span class="label">キャラ <span class="cname" id="cn0">おまかせ</span></span><div class="cpick" id="cp0" role="group" aria-label="プレイヤー1のキャラ"></div><small>早押し <span class="kbd">A</span> キー／左のボタン</small></div>
     <div class="pcard p2"><span class="team">肝動脈チーム（右）</span><label for="n2" class="label">プレイヤー2の名前</label><input id="n2" maxlength="10" value="プレイヤー2"><span class="label">キャラ <span class="cname" id="cn1">おまかせ</span></span><div class="cpick" id="cp1" role="group" aria-label="プレイヤー2のキャラ"></div><small>早押し <span class="kbd">L</span> キー／右のボタン</small></div>
@@ -384,7 +391,8 @@ body.net-host .peek,body.net-guest .peek{display:none}
   </div>
   <div class="title-actions">
     <button class="btn primary go" id="startBtn" type="button">対戦スタート</button>
-    <button class="btn" id="netBtn" type="button">別の端末と対戦</button>
+    <button class="btn" id="netBtn" type="button">部屋を作る（別の端末と対戦）</button>
+    <button class="btn" id="joinBtn" type="button">番号で部屋に入る</button>
     <button class="btn" id="rulesBtn" type="button">ルール</button>
     <button class="btn" id="zukanBtn" type="button">肝臓ずかん</button>
     <span class="mute" id="poolInfo"></span>
@@ -451,12 +459,21 @@ body.net-host .peek,body.net-guest .peek{display:none}
 </div></div>
 
 <div class="ov" id="netOv" hidden><div class="box" role="dialog" aria-modal="true" aria-labelledby="netH">
-  <h2 id="netH">別の端末と対戦</h2>
-  <p id="netStat" aria-live="polite">つなぐ準備をしています…</p>
+  <h2 id="netH">部屋を作る</h2>
+  <div class="bigcode"><span class="mute">ルーム番号</span><b id="netCode">····</b></div>
+  <p id="netStat" aria-live="polite">部屋を用意しています…</p>
+  <p class="mute">相手は同じページを開いて「番号で部屋に入る」にこの番号を入れるか、下のリンクを開くだけで入れます（アカウント不要）。あなたがプレイヤー1（左）、相手がプレイヤー2（右）。この画面を閉じても部屋は開いたままです。</p>
   <div class="netlink"><input id="netLink" readonly aria-label="招待リンク"><button class="btn small" id="netCopy" type="button">コピー</button><button class="btn small" id="netShare" type="button">送る</button></div>
-  <p class="mute">相手はこのリンクをスマホやPCのブラウザで開くだけで入れます（アカウント不要）。あなたがプレイヤー1（左）、相手がプレイヤー2（右）です。この画面を閉じても部屋は開いたままです。</p>
-  <div class="title-actions"><button class="btn primary" id="netClose" type="button">閉じる</button><button class="btn" id="netStop" type="button">オンラインをやめる</button></div>
+  <div class="title-actions"><button class="btn primary" id="netClose" type="button">閉じる</button><button class="btn" id="netStop" type="button">部屋を閉じる</button></div>
 </div></div>
+<div class="ov" id="joinOv" hidden><div class="box" role="dialog" aria-modal="true" aria-labelledby="joinH">
+  <h2 id="joinH">番号で部屋に入る</h2>
+  <p class="mute">部屋を作った人の画面に出ている4けたの番号を入れてください。</p>
+  <input id="joinCode" class="codein" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="0000" aria-label="ルーム番号">
+  <div class="mute" id="joinMsg" aria-live="polite"></div>
+  <div class="title-actions"><button class="btn primary" id="joinGo" type="button">入る</button><button class="btn" id="joinCancel" type="button">やめる</button></div>
+</div></div>
+<div class="netdot" id="netDot" hidden aria-live="polite"></div>
 
 <script src="questions.js"></script>
 <script>
@@ -470,12 +487,37 @@ const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
 const Q=(typeof QUESTIONS!=="undefined")?QUESTIONS:[];
 /* オンライン対戦の状態（role: null／"host"＝部屋を作った端末／"guest"＝リンクで入った端末） */
-const NET={role:null,conn:null,peer:null,guest:null,rtt:150,win:()=>Math.max(80,Math.min(320,NET.rtt))};
+const NET={role:null,guest:null,gHeard:0,rtt:250,win:()=>Math.max(80,Math.min(900,NET.rtt))};
 
 /* ---------- 音 ---------- */
 let soundOn=store.get("ld_sound2",false),actx=null;
 function tone(f,d=.12,type="square",vol=.06,when=0){if(NET.role==="host")netSend({t:"tone",a:[f,d,type,vol,when]});if(!soundOn)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const t=actx.currentTime+when;const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(actx.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
 const SFX={buzz:()=>{tone(880,.08);tone(1320,.12,"square",.06,.07)},ok:()=>{tone(660,.1,"triangle",.1);tone(990,.18,"triangle",.1,.1)},ng:()=>{tone(220,.25,"sawtooth",.06);tone(160,.3,"sawtooth",.05,.12)},hit:()=>tone(120,.2,"square",.08),ev:()=>{[523,659,784,1046].forEach((f,i)=>tone(f,.12,"triangle",.07,i*.08))},tick:()=>tone(1500,.03,"square",.03),win:()=>{[523,659,784,659,784,1046].forEach((f,i)=>tone(f,.16,"triangle",.09,i*.13))}};
+/* BGM「肝臓ベリベリビューティフル」: このゲームのために作ったオリジナルの8小節ループ（144BPM、メロディ・ベース・リズム） */
+const BGM={on:store.get("ld_bgm",false),timer:0,step:0,next:0,bus:null};
+const BGM_LEAD=[64,67,69,67,64,62,60,62, 64,67,69,72,71,69,67,0, 69,69,67,64,67,69,67,64, 62,64,67,64,62,60,62,0,
+                72,72,71,69,71,72,74,0, 71,71,69,67,69,71,72,0, 69,72,74,76,74,72,69,67, 65,67,69,71,72,0,72,0];
+const BGM_ROOT=[48,43,41,43, 41,43,45,43];
+function bgmVol(){return document.body.classList.contains("busy")?0.05:(!$("#game").hidden?0.08:0.12);}
+function bgmNote(f,t,d,type,vol){const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(BGM.bus);o.start(t);o.stop(t+d+.02);}
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+function bgmTick(){if(!actx||!BGM.bus)return;const e=60/144/2;
+  if(BGM.next<actx.currentTime-0.2)BGM.next=actx.currentTime+0.05;
+  BGM.bus.gain.setTargetAtTime(bgmVol(),actx.currentTime,0.3);
+  while(BGM.next<actx.currentTime+0.3){const k=BGM.step,t=BGM.next,bar=Math.floor(k/8);
+    const m=BGM_LEAD[k];if(m)bgmNote(mtof(m),t,e*0.9,"square",.18);
+    const r=BGM_ROOT[bar];bgmNote(mtof(k%2?r+7:r),t,e*0.8,"triangle",.5);
+    if(k%4===0){const o=actx.createOscillator(),g=actx.createGain();o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(45,t+.12);g.gain.setValueAtTime(.6,t);g.gain.exponentialRampToValueAtTime(.001,t+.14);o.connect(g).connect(BGM.bus);o.start(t);o.stop(t+.16);}
+    if(k%2===1)bgmNote(6000,t,.03,"square",.04);
+    BGM.next+=e;BGM.step=(k+1)%64;}}
+function bgmPlay(){if(!BGM.on)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume();}catch(e){return;}
+  if(BGM.timer)return;BGM.bus=actx.createGain();BGM.bus.gain.value=bgmVol();BGM.bus.connect(actx.destination);BGM.next=actx.currentTime+0.08;BGM.step=0;BGM.timer=setInterval(bgmTick,90);bgmTick();}
+function bgmStop(){clearInterval(BGM.timer);BGM.timer=0;if(BGM.bus){try{BGM.bus.gain.setTargetAtTime(0,actx.currentTime,0.05);const b=BGM.bus;setTimeout(()=>b.disconnect(),400);}catch(e){}BGM.bus=null;}}
+function syncBgm(){$("#bgmBtn").textContent="BGM: "+(BGM.on?"ON ♪肝臓ベリベリビューティフル":"OFF");}
+$("#bgmBtn").onclick=()=>{BGM.on=!BGM.on;store.set("ld_bgm",BGM.on);syncBgm();BGM.on?bgmPlay():bgmStop();};syncBgm();
+// ブラウザは「画面に触れたあと」でないと音を出せないので、最初のタッチで流し始める
+document.addEventListener("pointerdown",()=>{if(BGM.on&&!BGM.timer)bgmPlay();},true);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)bgmStop();});
 function syncSound(){$("#soundBtn").textContent="音: "+(soundOn?"ON":"OFF");}
 $("#soundBtn").onclick=()=>{soundOn=!soundOn;store.set("ld_sound2",soundOn);syncSound();};syncSound();
 
@@ -1029,7 +1071,7 @@ $("#zukanBtn").onclick=()=>{renderZukan();show("#zukan");};
 $("#zBack").onclick=()=>show("#title");
 
 /* ---------- ボタン・キー ---------- */
-$("#startBtn").onclick=()=>{if(NET.role==="host"&&!(NET.conn&&NET.conn.open))return toast("相手がまだつながっていません。「別の端末と対戦」のリンクを送ってください");newGame();};
+$("#startBtn").onclick=()=>{if(NET.role==="host"&&!netLive())return toast(NET.guest?"相手との通信が途切れています。少し待つか、相手に開き直してもらってください":"相手がまだ入っていません。ルーム番号を伝えるか、リンクを送ってください");newGame();};
 const ov=(id,on)=>{$(id).hidden=!on;};
 $("#rulesBtn").onclick=()=>{ov("#rulesOv",true);$("#rulesClose").focus();};
 $("#rulesClose").onclick=()=>ov("#rulesOv",false);
@@ -1063,31 +1105,68 @@ window.addEventListener("focus",()=>{$("#focusHint").hidden=true;});
 document.addEventListener("pointerdown",()=>{$("#focusHint").hidden=true;},true);
 // ボタンにフォーカスがある状態でSpace/Enterを押したときの二重進行を防ぐ
 document.addEventListener("click",e=>{if(e.target.closest("#nextBtn,#evNext,#passOk,#actGo"))S&&(S.advance=null);},true);
-/* ---------- オンライン対戦（リンクを開くだけで別の端末とつながる） ----------
-   部屋を作った端末（親）が進行と判定をすべて持ち、画面の中身を相手へ送る。
-   相手（子）は送られた画面を映し、押したボタンだけを親へ返す。
-   つなぎ方は WebRTC（PeerJS の公開の仲介サーバーで相手を見つけ、そのあとは端末どうしで直接通信）。 */
-const PEER_SRC="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",PFX="liverduel-";
+/* ---------- オンライン対戦（ルーム番号かリンクで別の端末とつながる） ----------
+   部屋を作った端末（親）が進行と判定をすべて持ち、画面の中身を相手へ送る。相手（子）は送られた画面を映し、押したボタンだけを親へ返す。
+   通り道は2本: (1) 公開の中継サーバー（MQTT、2か所）… どの回線どうしでも届く  (2) 端末どうしの直接通信（WebRTC）… 同じWi-Fiなどでつながれば速い。
+   同じ知らせを両方に流し、受け取った側で重複を捨てる。片方が切れても遊び続けられる。 */
+const PEER_SRC="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",MQTT_SRC="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js",PFX="liverduel-v2-";
+const BROKERS=["wss://broker.emqx.io:8084/mqtt","wss://test.mosquitto.org:8081/mqtt"];
 const REG={hud:"#hud",stage:"#stageArea",buzz:"#buzzrow",result:"#result"};
-function loadPeer(){return window.Peer?Promise.resolve():new Promise((ok,ng)=>{const sc=document.createElement("script");sc.src=PEER_SRC;sc.onload=ok;sc.onerror=()=>ng(new Error("load"));document.head.appendChild(sc);});}
-function netSend(o){const c=NET.conn;if(c&&c.open){try{c.send(o);}catch(e){}}}
-function roomCode(){const a="abcdefghjkmnpqrstuvwxyz23456789";let r="";for(let i=0;i<6;i++)r+=a[rnd(a.length)];return r;}
-function unlockAudio(){if(!soundOn)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume();}catch(e){}}
+// id: この画面（タブ）の名札。開き直しても同じ名札なので、親は「さっきの相手が戻ってきた」と分かる。n: 読み込みごとの番号（重複を見分ける用）
+const LK={room:null,me:null,id:(()=>{let v=null;try{v=sessionStorage.getItem("ld_nid");if(!v){v=Math.random().toString(36).slice(2,10);sessionStorage.setItem("ld_nid",v);}}catch(e){}return v||Math.random().toString(36).slice(2,10);})(),n:Math.random().toString(36).slice(2,8),seq:0,mq:[],peer:null,dc:null,seen:new Map(),heard:0,on:null,clash:false};
+function loadScript(src,glob){return window[glob]?Promise.resolve():new Promise((ok,ng)=>{const sc=document.createElement("script");sc.src=src;sc.onload=()=>window[glob]?ok():ng(new Error("load"));sc.onerror=()=>ng(new Error("load"));document.head.appendChild(sc);});}
+const topic=who=>`liverduel/v2/${LK.room}/${who}`;
+function netSend(o){if(!LK.room)return;o.f=LK.id;o.n=LK.n;o.s=++LK.seq;const str=JSON.stringify(o);
+  LK.mq.forEach(c=>{if(c.connected){try{c.publish(topic(LK.me),str);}catch(e){}}});
+  if(LK.dc&&LK.dc.open){try{LK.dc.send(str);}catch(e){}}}
+function netRecv(raw){let d;try{d=JSON.parse(typeof raw==="string"?raw:new TextDecoder().decode(raw));}catch(e){return;}
+  if(!d||typeof d!=="object"||!d.f||d.f===LK.id)return;
+  const k=d.n+":"+d.s;if(LK.seen.has(k))return;LK.seen.set(k,1);
+  if(LK.seen.size>900){const it=LK.seen.keys();for(let i=0;i<400;i++)LK.seen.delete(it.next().value);}
+  LK.heard=performance.now();LK.on&&LK.on(d);}
+function linkClose(){LK.mq.forEach(c=>{try{c.end(true);}catch(e){}});LK.mq=[];try{LK.peer&&LK.peer.destroy();}catch(e){}LK.peer=null;LK.dc=null;LK.room=null;LK.heard=0;LK.clash=false;}
+async function linkOpen(room,me,on){
+  linkClose();LK.room=room;LK.me=me;LK.on=on;
+  await loadScript(MQTT_SRC,"mqtt");
+  if(LK.room!==room)return;
+  LK.mq=BROKERS.map(u=>{const c=mqtt.connect(u,{connectTimeout:8000,reconnectPeriod:3000,keepalive:30,clean:true,clientId:"ld_"+LK.id+"_"+Math.random().toString(36).slice(2,6)});
+    c.on("connect",()=>{c.subscribe(topic(me==="h"?"g":"h"));if(me==="h")c.subscribe(topic("h"));});
+    c.on("message",(t,m)=>{if(LK.room!==room)return;const s=m.toString();
+      if(me==="h"&&t===topic("h")){try{if(JSON.parse(s).f!==LK.id)LK.clash=true;}catch(e){}return;}
+      netRecv(s);});
+    c.on("error",()=>{});return c;});
+  // 直接通信は「つながればもうけ」。失敗しても中継で遊べるので知らせない
+  loadScript(PEER_SRC,"Peer").then(()=>{if(LK.room!==room)return;
+    const bind=c=>{c.on("open",()=>{LK.dc=c;});c.on("data",netRecv);c.on("close",()=>{if(LK.dc===c)LK.dc=null;});c.on("error",()=>{});};
+    if(me==="h"){const p=new Peer(PFX+room,{debug:0});LK.peer=p;p.on("connection",bind);p.on("error",()=>{});p.on("disconnected",()=>{try{if(!p.destroyed)p.reconnect();}catch(e){}});}
+    else{const p=new Peer({debug:0});LK.peer=p;p.on("open",()=>bind(p.connect(PFX+room,{reliable:true,serialization:"raw"})));p.on("error",()=>{});}
+  }).catch(()=>{});
+}
+const relayUp=()=>LK.mq.some(c=>c.connected);
+const waitUntil=(f,ms)=>new Promise(ok=>{const t0=performance.now();const iv=setInterval(()=>{if(f()||performance.now()-t0>ms){clearInterval(iv);ok(!!f());}},100);});
+function unlockAudio(){try{if(soundOn||BGM.on){actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume();}}catch(e){}}
+function netLive(){return NET.role==="host"?!!(NET.guest&&performance.now()-NET.gHeard<7000):LK.heard>0&&performance.now()-LK.heard<7000;}
+
+/* --- 通信の調子（両方の画面の右上） --- */
+function renderDot(){const d=$("#netDot");if(!NET.role||!LK.room){d.hidden=true;return;}d.hidden=false;
+  const live=netLive(),via=LK.dc&&LK.dc.open?"直接":"中継",r=Math.round(NET.role==="host"?NET.rtt:(G.rtt||0));
+  d.className="netdot "+(!live?"off":r>600?"slow":"good");
+  d.textContent=!live?(NET.role==="host"&&!NET.guest?`部屋 ${LK.room}・相手を待っています`:`部屋 ${LK.room}・通信が途切れています…`):`部屋 ${LK.room}・${via}${r?` ${r}ms`:""}`;}
 
 /* --- 親: 画面を送る --- */
 let netLast={},netT=0,netObs=null;
 function netScr(){return S&&!$("#game").hidden?"#game":!$("#result").hidden?"#result":"#title";}
-function netFlush(force){netT=0;if(NET.role!=="host"||!(NET.conn&&NET.conn.open))return;
+function netFlush(force){netT=0;if(NET.role!=="host"||!NET.guest)return;
   if(force)netLast={};const scr=netScr();
   if(scr!=="#title")for(const [r,sel] of Object.entries(REG)){if(scr==="#result"&&r!=="result")continue;if(scr==="#game"&&r==="result")continue;const h=$(sel).innerHTML;if(netLast[r]!==h){netLast[r]=h;netSend({t:"dom",r,h});}}
   if(netLast.scr!==scr){netLast.scr=scr;netSend({t:"scr",id:scr});}
   const ph=S?S.phase:null,an=S?S.answerer:null,qi=S?S.qi:null,k=ph+"|"+an+"|"+qi;
   if(netLast.ph!==k){netLast.ph=k;netSend({t:"ph",ph,an,qi});}}
-function netSched(){if(!netT)netT=setTimeout(()=>netFlush(false),50);}
+function netSched(){if(!netT)netT=setTimeout(()=>netFlush(false),LK.dc&&LK.dc.open?50:90);}
 function netObserve(){if(netObs)return;const localOnly=r=>{const t=r.target.nodeType===1?r.target:r.target.parentElement;return !!(t&&t.closest("[data-local]"));};
   netObs=new MutationObserver(recs=>{if(recs.every(localOnly))return;netSched();});
   ["#game","#result"].forEach(s=>netObs.observe($(s),{subtree:true,childList:true,attributes:true,characterData:true}));}
-/* 早押しの判定: 端末ごとに「問題が画面に出てから押すまでの時間」を比べる（通信の遅れで子が不利にならないように、親は少しだけ待つ） */
+/* 早押しの判定: 端末ごとに「問題が画面に出てから押すまでの時間」を比べる（通信の遅れで子が不利にならないよう、親は往復時間ぶん待つ） */
 function netBuzz(i,el){
   if(!S||S.phase!=="buzz")return;
   const P=S.bzPend;
@@ -1095,52 +1174,56 @@ function netBuzz(i,el){
   else if(!P.c.some(c=>c[0]===i))P.c.push([i,el]);
 }
 function onHostData(d){
-  if(!d||typeof d!=="object")return;
-  if(d.t==="hello"){NET.guest={name:String(d.name||"").trim().slice(0,10)||"プレイヤー2",char:ROSTER.some(r=>r.id===d.char)?d.char:"rand"};renderNetBar();return;}
-  if(d.t==="pong"){const r=performance.now()-d.ts;if(r>0&&r<5000)NET.rtt=NET.rtt*0.6+r*0.4;return;}
+  if(d.t==="hello"){
+    const now=performance.now();
+    if(NET.guest&&NET.guest.f!==d.f&&now-NET.gHeard<7000){netSend({t:"full",to:d.f});return;}
+    NET.guest={f:d.f,name:String(d.name||"").trim().slice(0,10)||"プレイヤー2",char:ROSTER.some(r=>r.id===d.char)?d.char:"rand"};NET.gHeard=now;
+    renderNetBar();netFlush(true);return;}
+  if(!NET.guest||d.f!==NET.guest.f)return;
+  NET.gHeard=performance.now();
+  if(d.t==="pong"){const r=performance.now()-d.ts;if(r>0&&r<8000)NET.rtt=NET.rtt*0.6+r*0.4;return;}
   if(!S)return;
   if(d.t==="press"){const ext={el:+d.el,tv:+d.tv,rt:+d.rt};if(typeof d.foul==="boolean")ext.foul=d.foul;if(ext.el<0||ext.el>60000)ext.el=NaN;return S.phase==="action"?actPress(1,ext):buzz(1,ext);}
   if(d.t==="choose"){if((S.phase==="answer"||S.phase==="steal")&&S.answerer===1)choose(Math.floor(+d.k));return;}
   if(d.t==="num"){if(S.phase==="num"&&S.numOrder[S.numStep]===1){const v=+d.v;if(isFinite(v)&&$("#nn")){$("#nn").value=v;$("#nr").value=v;S.numOk&&S.numOk(true);}}return;}
   if(d.t==="adv"){if(d.ph===S.phase&&d.qi===S.qi&&S.advance){const f=S.advance;S.advance=null;f();}return;}
 }
-let n2Before=null,netPing=0;
+let n2Before=null,netTick=0;
 function renderNetBar(){
   const bar=$("#netBar");
   if(NET.role!=="host"){bar.hidden=true;document.body.classList.remove("net-host","net-has");return;}
-  const on=!!(NET.conn&&NET.conn.open&&NET.guest);
-  document.body.classList.toggle("net-has",on);
+  const on=netLive();
+  document.body.classList.toggle("net-has",!!NET.guest);
   bar.hidden=false;
-  bar.innerHTML=`<span class="grow">${on?`オンライン対戦: 右のプレイヤー2は <b>${esc(NET.guest.name)}</b>（相手の端末）`:"オンライン対戦: 相手を待っています"}</span><button class="btn small" type="button" data-n="link">招待リンク</button><button class="btn small" type="button" data-n="stop">やめる</button>`;
-  if(on){if(n2Before==null)n2Before=$("#n2").value;$("#n2").value=NET.guest.name;$("#n2").readOnly=true;$("#cn1").textContent=(ROSTER.find(r=>r.id===NET.guest.char)||{name:"おまかせ"}).name;}
-  $("#netStat").innerHTML=on?`<b>${esc(NET.guest.name)}</b> がつながりました。「閉じる」を押して、設定を選んで「対戦スタート」へ。`:($("#netLink").value?"このリンクを相手に送ってください。相手が開いて「参加する」を押すと、ここに名前が出ます。":$("#netStat").innerHTML);
+  bar.innerHTML=`<span class="grow">${NET.guest?`ルーム <b>${LK.room||"…"}</b>: 右のプレイヤー2は <b>${esc(NET.guest.name)}</b>（相手の端末）${on?"":"・通信が途切れています"}`:`ルーム <b>${LK.room||"…"}</b>: 相手を待っています`}</span><button class="btn small" type="button" data-n="link">番号・リンク</button><button class="btn small" type="button" data-n="stop">やめる</button>`;
+  if(NET.guest){if(n2Before==null)n2Before=$("#n2").value;$("#n2").value=NET.guest.name;$("#n2").readOnly=true;$("#cn1").textContent=(ROSTER.find(r=>r.id===NET.guest.char)||{name:"おまかせ"}).name;}
+  if(NET.guest)$("#netStat").innerHTML=`<b>${esc(NET.guest.name)}</b> がつながりました。「閉じる」を押して、設定を選んで「対戦スタート」へ。`;
 }
 async function hostRoom(){
   $("#netOv").hidden=false;
-  if(NET.role==="host"&&NET.peer){renderNetBar();return;}
-  NET.role="host";document.body.classList.add("net-host");renderNetBar();
-  $("#netStat").textContent="つなぐ準備をしています…";$("#netLink").value="";
-  if(location.protocol==="file:")$("#netStat").textContent="このファイルを直接開いた状態では、相手がリンクを開けません。公開したURLで開いてください。";
-  try{await loadPeer();}catch(e){$("#netStat").textContent="通信の部品を読み込めませんでした。ネットにつながっているか確かめてください。";return;}
-  if(NET.role!=="host")return;
-  const id=roomCode();const peer=new Peer(PFX+id,{debug:0});NET.peer=peer;
-  peer.on("open",()=>{$("#netLink").value=location.href.split("#")[0]+"#room="+id;renderNetBar();});
-  peer.on("connection",c=>{
-    if(NET.conn&&NET.conn.open){c.on("open",()=>{c.send({t:"full"});setTimeout(()=>c.close(),400);});return;}
-    NET.conn=c;
-    c.on("open",()=>{netObserve();netFlush(true);renderNetBar();});
-    c.on("data",onHostData);
-    c.on("close",()=>{if(NET.conn===c){NET.conn=null;const g=NET.guest;renderNetBar();if(g)toast(`<b>${esc(g.name)}</b> との通信が切れました。相手が同じリンクを開き直すと、つながり直します`,6000);}});
-  });
-  peer.on("disconnected",()=>{try{if(!peer.destroyed)peer.reconnect();}catch(e){}});
-  peer.on("error",e=>{$("#netStat").textContent="通信エラー（"+(e&&e.type||"不明")+"）。少し待ってから開き直してください。";});
-  clearInterval(netPing);netPing=setInterval(()=>netSend({t:"ping",ts:performance.now()}),2000);
+  if(NET.role==="host"&&LK.room){renderNetBar();return;}
+  NET.role="host";NET.guest=null;document.body.classList.add("net-host");
+  $("#netCode").textContent="····";$("#netLink").value="";$("#netStat").textContent="部屋を用意しています…";
+  for(let tries=0;tries<4;tries++){
+    const code=String(1000+rnd(9000));
+    try{await linkOpen(code,"h",onHostData);}catch(e){$("#netStat").textContent="通信の部品を読み込めませんでした。ネットにつながっているか確かめてください。";return;}
+    if(NET.role!=="host")return;
+    if(!await waitUntil(relayUp,12000)){$("#netStat").textContent="中継サーバーにつながりませんでした。ネットにつながっているか確かめて、もう一度押してください。";linkClose();NET.role=null;document.body.classList.remove("net-host");return;}
+    await new Promise(r=>setTimeout(r,2300));  // 同じ番号の部屋がすでに使われていないか（使われていれば親の合図が聞こえる）
+    if(NET.role!=="host")return;
+    if(!LK.clash)break;
+  }
+  $("#netCode").textContent=LK.room;
+  $("#netLink").value=location.href.split("#")[0]+"#room="+LK.room;
+  $("#netStat").textContent="相手に番号を伝えるか、リンクを送ってください。相手が入ると、ここに名前が出ます。";
+  if(location.protocol==="file:")$("#netStat").textContent+="（このファイルを直接開いた状態ではリンクは使えません。番号で入ってもらってください）";
+  netObserve();renderNetBar();
+  clearInterval(netTick);netTick=setInterval(()=>{if(NET.role!=="host")return;netSend({t:"ping",ts:performance.now(),r:Math.round(NET.rtt)});renderNetBar();renderDot();},1500);
 }
 function stopNet(){
-  try{NET.conn&&NET.conn.close();}catch(e){}try{NET.peer&&NET.peer.destroy();}catch(e){}
-  NET.conn=null;NET.peer=null;NET.guest=null;NET.role=null;clearInterval(netPing);
+  linkClose();NET.guest=null;NET.role=null;clearInterval(netTick);
   if(n2Before!=null){$("#n2").value=n2Before;n2Before=null;}$("#n2").readOnly=false;renderPick(1);
-  $("#netOv").hidden=true;renderNetBar();
+  $("#netOv").hidden=true;renderNetBar();renderDot();
 }
 $("#netBtn").onclick=hostRoom;
 $("#netClose").onclick=()=>{$("#netOv").hidden=true;};
@@ -1148,10 +1231,10 @@ $("#netStop").onclick=stopNet;
 $("#netOv").onclick=e=>{if(e.target.id==="netOv")$("#netOv").hidden=true;};
 $("#netBar").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.n==="link")hostRoom();else stopNet();});
 $("#netCopy").onclick=async()=>{const v=$("#netLink").value;if(!v)return;try{await navigator.clipboard.writeText(v);$("#netCopy").textContent="コピーした";}catch(e){$("#netLink").select();document.execCommand&&document.execCommand("copy");$("#netCopy").textContent="コピーした";}setTimeout(()=>$("#netCopy").textContent="コピー",1500);};
-$("#netShare").onclick=async()=>{const v=$("#netLink").value;if(!v)return;if(navigator.share){try{await navigator.share({title:"レバー・デュエル",text:"肝臓クイズで対戦しよう",url:v});}catch(e){}}else $("#netCopy").onclick();};
+$("#netShare").onclick=async()=>{const v=$("#netLink").value;if(!v)return;if(navigator.share){try{await navigator.share({title:"レバー・デュエル",text:`肝臓クイズで対戦しよう（ルーム ${LK.room}）`,url:v});}catch(e){}}else $("#netCopy").onclick();};
 
 /* --- 子: 送られた画面を映し、押したものだけ返す --- */
-const G={ph:null,an:null,qi:null,qk:null,qAt:null,bugAt:null,reactDone:false,tim0:null,tDone:[false,false],tmr:null,tmrRaf:0};
+const G={ok:false,ph:null,an:null,qi:null,qk:null,qAt:null,bugAt:null,reactDone:false,tim0:null,tDone:[false,false],tmr:null,tmrRaf:0,ver:{},host:null,rtt:0,full:false};
 function morph(dst,html){const t=document.createElement("template");t.innerHTML=html;patchKids(dst,t.content);}
 function patchKids(a,b){
   const an=[...a.childNodes],bn=[...b.childNodes];
@@ -1176,17 +1259,21 @@ function gTimer(){if(G.tmrRaf)return;const f=()=>{G.tmrRaf=0;if(!G.tmr)return;co
 function gNeedles(){const f=()=>{if(G.tim0==null)return;const t=(performance.now()-G.tim0)/1000;if(t>6.5)return;[0,1].forEach(i=>{const n=$("#tn"+i),tr=$("#tr"+i);if(!n||G.tDone[i]||(tr&&tr.textContent))return;n.style.left=(needleAt(i,t)*100)+"%";});requestAnimationFrame(f);};requestAnimationFrame(f);}
 function gStat(t){$("#gStat").textContent=t;}
 function onGuestData(d){
-  if(!d||typeof d!=="object")return;
+  if(d.to&&d.to!==LK.id)return;
+  if(G.host!==d.n){G.host=d.n;G.ver={};}
+  if(d.t==="full"){G.full=true;gStat("この部屋はもう2人そろっています。番号を確かめてください");return;}
+  // 2本の通り道で順番が入れ替わっても、古い画面で上書きしない
+  if(d.t==="dom"||d.t==="scr"||d.t==="ph"||d.t==="tmr"){const k=d.t+(d.r||"");if((G.ver[k]||0)>d.s)return;G.ver[k]=d.s;}
   if(d.t==="dom"){const sel=REG[d.r];if(sel&&typeof d.h==="string"){morph($(sel),d.h);if(d.r==="stage")gAfterStage();}return;}
-  if(d.t==="scr"){if(d.id==="#game"||d.id==="#result")show(d.id);else{show("#title");gStat("つながっています。親（部屋を作った人）がスタートするのを待っています");}return;}
+  if(d.t==="scr"){G.ok=true;if(d.id==="#game"||d.id==="#result")show(d.id);else{show("#title");gStat("つながりました。親（部屋を作った人）がスタートするのを待っています");}return;}
   if(d.t==="ph"){G.ph=d.ph;G.an=d.an;G.qi=d.qi;return;}
   if(d.t==="toast"){toast(String(d.h),+d.ms||4200);return;}
   if(d.t==="tone"){if(Array.isArray(d.a))tone(...d.a);return;}
   if(d.t==="tmr"){G.tmr=d.sec?{sec:+d.sec,t0:performance.now()}:null;gTimer();return;}
   if(d.t==="tim"){G.tim0=performance.now();G.tDone=[false,false];gNeedles();return;}
-  if(d.t==="ping"){netSend({t:"pong",ts:d.ts});return;}
-  if(d.t==="full"){gStat("この部屋はもう2人そろっています");return;}
+  if(d.t==="ping"){G.rtt=+d.r||0;netSend({t:"pong",ts:d.ts});return;}
 }
+let gHelloT=0;
 function gHello(){netSend({t:"hello",name:$("#n2").value.trim()||"プレイヤー2",char:charSel[1]});store.set("ld_gname",$("#n2").value.trim());}
 function gPress(){
   const b=$("#buzz1");if(!b||b.disabled)return;const now=performance.now();
@@ -1198,26 +1285,28 @@ function gPress(){
   netSend(m);
 }
 function gNumSet(v){const r=$("#nr"),nn=$("#nn"),nv=$("#nv");if(!r)return;const mn=+r.min,mx=+r.max;v=+v;if(!isFinite(v))v=+r.value;r.value=Math.min(mx,Math.max(mn,v));nn.value=r.value;const u=nv&&nv.querySelector("small");if(nv)nv.innerHTML=`${fmt(+r.value)}<small>${esc(u?u.textContent:"")}</small>`;}
-async function guestInit(id){
-  NET.role="guest";document.body.classList.add("net-guest");
-  $("#gBox").hidden=false;$("#title .topbar").after($("#gBox"));const gn=store.get("ld_gname","");if(gn)$("#n2").value=gn;
-  gStat("");
-  const join=async()=>{
-    unlockAudio();
-    if(NET.conn&&NET.conn.open){gHello();return;}
-    $("#gJoin").disabled=true;gStat("つないでいます…");
-    try{await loadPeer();}catch(e){gStat("通信の部品を読み込めませんでした。ネットにつながっているか確かめてください");$("#gJoin").disabled=false;return;}
-    try{NET.peer&&NET.peer.destroy();}catch(e){}
-    const peer=new Peer({debug:0});NET.peer=peer;
-    peer.on("open",()=>{const c=peer.connect(PFX+id,{reliable:true,serialization:"json"});NET.conn=c;
-      c.on("open",()=>{$("#gJoin").disabled=false;$("#gJoin").textContent="名前とキャラを送り直す";gStat("つながりました。親（部屋を作った人）がスタートするのを待っています");gHello();});
-      c.on("data",onGuestData);
-      c.on("close",()=>{if(NET.conn!==c)return;NET.conn=null;$("#gJoin").disabled=false;$("#gJoin").textContent="もう一度つなぐ";show("#title");gStat("通信が切れました。「もう一度つなぐ」を押してください");});});
-    peer.on("error",e=>{$("#gJoin").disabled=false;gStat(e&&e.type==="peer-unavailable"?"部屋が見つかりません。親の画面が開いたままか、リンクが正しいか確かめてください":"通信エラー（"+(e&&e.type||"不明")+"）。もう一度押してください");});
-  };
-  $("#gJoin").onclick=join;
-  $("#n2").addEventListener("change",()=>{if(NET.conn&&NET.conn.open)gHello();});
-  $("#cp1").addEventListener("click",()=>{if(NET.conn&&NET.conn.open)setTimeout(gHello,0);});
+let gBound=false;
+async function guestJoin(code){
+  NET.role="guest";document.body.classList.add("net-guest");G.full=false;G.ok=false;G.host=null;G.ver={};
+  $("#gBox").hidden=false;$("#title .topbar").after($("#gBox"));$("#gRoom").textContent=code;
+  const gn=store.get("ld_gname","");if(gn&&$("#n2").value==="プレイヤー2")$("#n2").value=gn;
+  $("#gJoin").hidden=true;gStat("つないでいます…");
+  if(location.hash!=="#room="+code)try{history.replaceState(null,"","#room="+code);}catch(e){}
+  try{await linkOpen(code,"g",onGuestData);}catch(e){gStat("通信の部品を読み込めませんでした。ネットにつながっているか確かめてください");$("#gJoin").hidden=false;return;}
+  const t0=performance.now();let warned=false;
+  clearInterval(gHelloT);gHelloT=setInterval(()=>{
+    if(NET.role!=="guest")return clearInterval(gHelloT);
+    const quiet=performance.now()-LK.heard>4500;
+    if((!G.ok||quiet)&&!G.full)gHello();  // 親に受け入れられるまで、また親から届かなくなったら名乗り続ける（中継につながる前に送った分が消えても大丈夫）
+    if(!LK.heard&&!warned&&performance.now()-t0>12000){warned=true;$("#gJoin").hidden=false;gStat(relayUp()?`ルーム ${code} が見つかりません。番号と、親の画面が開いたままかを確かめてください`:"中継サーバーにつながりません。ネットにつながっているか確かめてください");}
+    if(LK.heard&&!$("#game").hidden&&performance.now()-LK.heard>7000)gStat("通信が途切れています。つなぎ直しています…");
+    renderDot();},1500);
+  gHello();
+  if(gBound)return;gBound=true;
+  $("#gJoin").onclick=()=>{unlockAudio();guestJoin($("#gRoom").textContent);};
+  $("#gLeave").onclick=()=>{linkClose();location.href=location.href.split("#")[0];};
+  let nT=0;$("#n2").addEventListener("input",()=>{clearTimeout(nT);nT=setTimeout(()=>NET.role==="guest"&&gHello(),400);});
+  $("#cp1").addEventListener("click",()=>{if(NET.role==="guest")setTimeout(gHello,0);});
   document.addEventListener("pointerdown",e=>{unlockAudio();if(e.target.closest("#buzz1")){e.preventDefault();gPress();}},true);
   document.addEventListener("click",e=>{const t=e.target;
     const ch=t.closest("#choices .ch");if(ch){if((G.ph==="answer"||G.ph==="steal")&&G.an===1)netSend({t:"choose",k:[...document.querySelectorAll("#choices .ch")].indexOf(ch)});return;}
@@ -1237,8 +1326,17 @@ async function guestInit(id){
     if((sp||en)&&!e.repeat&&["reveal","event","numpass","actintro"].includes(G.ph)){e.preventDefault();netSend({t:"adv",ph:G.ph,qi:G.qi});}
   });
 }
-{const m=/[#&]room=([a-z0-9]{4,16})/.exec(location.hash);if(m)guestInit(m[1]);}
-if(location.hash==="#debug")window.__net={NET,G,netFlush};
+/* 番号で入る */
+$("#joinBtn").onclick=()=>{$("#joinOv").hidden=false;$("#joinCode").value="";$("#joinMsg").textContent="";setTimeout(()=>$("#joinCode").focus(),30);};
+$("#joinCancel").onclick=()=>{$("#joinOv").hidden=true;};
+$("#joinOv").onclick=e=>{if(e.target.id==="joinOv")$("#joinOv").hidden=true;};
+$("#joinCode").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4);if(e.target.value.length===4)$("#joinGo").focus();});
+$("#joinCode").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("#joinGo").click();}});
+$("#joinGo").onclick=()=>{const v=$("#joinCode").value;if(!/^\d{4}$/.test(v)){$("#joinMsg").textContent="4けたの数字を入れてください";return;}
+  if(NET.role==="host")stopNet();unlockAudio();$("#joinOv").hidden=true;guestJoin(v);};
+{const m=/[#&]room=(\d{4})\b/.exec(location.hash);if(m)guestJoin(m[1]);}
+if(location.hash==="#debug")window.__net={NET,G,LK,netFlush};
+
 
 })();
 
